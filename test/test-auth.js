@@ -1,18 +1,20 @@
-global.DATABASE_URL = 'mongodb://localhost/joystick-informer-test';
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 const {app, runServer, closeServer} = require('../server');
 const {User} = require('../users');
-const {JWT_SECRET} = require('../config');
+const {JWT_SECRET, DATABASE_URL} = require('../config');
 
 const expect = chai.expect;
 
-// This let's us make HTTP requests
-// in our tests.
-// see: https://github.com/chaijs/chai-http
 chai.use(chaiHttp);
+
+function tearDownDb() {
+    console.warn('Deleting database');
+    return mongoose.connection.dropDatabase();
+}
 
 describe('Auth endpoints', function() {
     const username = 'Gryffindor';
@@ -21,7 +23,7 @@ describe('Auth endpoints', function() {
     const lastName = 'Dumbledore';
 
     before(function() {
-        return runServer();
+        return runServer(DATABASE_URL);
     });
 
     after(function() {
@@ -40,7 +42,7 @@ describe('Auth endpoints', function() {
     });
 
     afterEach(function() {
-        return User.remove({});
+        return tearDownDb();
     });
 
     describe('/auth/login', function() {
