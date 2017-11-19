@@ -43,7 +43,7 @@ const watchlistSchema = mongoose.Schema({
     },
     gameIds: {
         type: Array,
-        default: ['noodles']
+        default: []
     }
 });
 

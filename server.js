@@ -22,6 +22,8 @@ const {PORT, DATABASE_URL} = require('./config');
 
 const app = express();
 
+app.use(bodyParser.json());
+
 // Logging
 app.use(morgan('common'));
 
@@ -40,33 +42,62 @@ app.use(passport.initialize());
 passport.use(basicStrategy);
 passport.use(jwtStrategy);
 
-app.use('/api/users/', usersRouter);
-app.use('/api/auth/', authRouter);
-
-// A protected endpoint which needs a valid JWT to access it
-app.get(
-    '/api/protected',
-    passport.authenticate('jwt', {session: false}),
-    (req, res) => {
-        return res.json({
-            data: 'rosebud'
-        });
-    }
-);
+app.use('/users/', usersRouter);
+app.use('/auth/', authRouter);
 
 app.get('/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
-    const userId = User.find(req.user)
+    return User
+    .find(req.user)
+    .exec()
+    .then(user => {
+        return Watchlist
+            .find(user._id)
+            .exec()
+            .then(userList => {
+                console.log(userList[0].gameIds);
+                res.json(userList[0]);
+            })
+    })    
+    .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something went wrong'});
+    })
+})
+
+app.put('/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
+    if (!("gameIds" in req.body)) {
+      const message = "Missing gameIds in request body";
+      console.error(message);
+      return res.status(400).send(message);
+    }
+    User
+    .find(req.user)
+    .exec()
+    .then(user => {
+        console.log("user id: " + user[0]._id);
+        return user[0]._id;
+    })
+    .then(id => {
+        console.log(id);
+        return Watchlist
+        .find({userId: id})
         .exec()
-        .then(user => {
-            return user._id;
+        .then(item => {
+            console.log(item);
+            return item[0];
         })
-    const watchlist = Watchlist.find(userId)
+    })
+    .then(list => {
+        console.log(list);
+        return Watchlist
+        .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds}}, {new: true})
         .exec()
-        .then(userList => {
-            console.log(userList.gameIds);
-            return userList;
-        })
-    res.json(watchlist)
+        .then(updatedList => res.status(201).json(updatedList))
+    })
+    .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something went wrong'});
+    })
 })
 
 app.use('*', (req, res) => {
@@ -77,15 +108,15 @@ app.use('*', (req, res) => {
 // assumes runServer has run and set `server` to a server object
 let server;
 
-function runServer() {
+function runServer(databaseUrl=DATABASE_URL, port=PORT) {
     return new Promise((resolve, reject) => {
-        mongoose.connect(DATABASE_URL, err => {
+        mongoose.connect(databaseUrl, err => {
             if (err) {
                 return reject(err);
             }
             server = app
-                .listen(PORT, () => {
-                    console.log(`Your app is listening on port ${PORT}`);
+                .listen(port, () => {
+                    console.log(`Your app is listening on port ${port}`);
                     resolve();
                 })
                 .on('error', err => {
