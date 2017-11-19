@@ -1,8 +1,9 @@
 language: node_js
 node_js: node
 services:
-  - mongodb
+- mongodb
 deploy:
   provider: heroku
-  api_key: 29251dcf-f2e6-4d42-b229-09c299c32467
   app: gentle-fortress-28919
+  api_key:
+    secure: rA6bT62/SUpwrrDRsvBvW+oXCw7jTgkeR/ysAthERlY7b+k8zponjMsiAnhwfElM8zwUBHnikPh1hcJOe/wE4RnQgv7rwyx7kon/32ysnecb6uKS06z1+W2RHLTYQJADpR4g6+ufKc9Vq15ifraH8ToWYjatBAE6BFnnhIoBtPUGFpNXG5dGLt28XqkCTpUyEBcgTec0YX8i4GmChuPJy5AzRyHGTgx8uamjYcsgX20xj6UuVMkdcPc83O75+OxYYZmvQDoD9/an2Ydvv3fTs+1+Edi+JoL/KUAFPRs9xnLl7ELS2TASzQTqo1V4FoUbAEM9++JR9F9MgJQr89lAiETaA7hBVXQ04i65DlNMuiQYK76PiQFuOCuQp2HK3Fb2n8yWdRnJZVdfl2ltNX1O4lOdw7NO8gHLndCWj5fot28sSNW2CoiHcmZ5Srx8NWJlceR80jLsUjRQURHneM+YUbvVqNtixobmLvlPZm2l2o39Ht1yzgI3epHYVwBoOumjO3P7WQC9oAgiuKLJAVbQs99b4p8n7PUwvWf7SWmXxA+NRb9tOXflp9t6/b4yYI6BxqPIH85c5+jlAY/+BIm6ul7vjpQan7IzER10q+cz4aSY/N/KlO1jp92JpGbEo9wE1EumshLdQOC2kReb4M32JkGL6o7FAmtt2WKlRBIvhpA=
