@@ -56,11 +56,11 @@ describe('Protected endpoint', function() {
         return tearDownDb();
     });
 
-    describe('/dashboard', function() {
+    describe('/api/dashboard', function() {
         it('Should reject requests with no credentials', function() {
             return chai
                 .request(app)
-                .get('/dashboard')
+                .get('/api/dashboard')
                 .then(() =>
                     expect.fail(null, null, 'Request should not succeed')
                 )
@@ -90,7 +90,7 @@ describe('Protected endpoint', function() {
 
             return chai
                 .request(app)
-                .get('/dashboard')
+                .get('/api/dashboard')
                 .set('Authorization', `Bearer ${token}`)
                 .then(() =>
                     expect.fail(null, null, 'Request should not succeed')
@@ -123,7 +123,7 @@ describe('Protected endpoint', function() {
 
             return chai
                 .request(app)
-                .get('/dashboard')
+                .get('/api/dashboard')
                 .set('authorization', `Bearer ${token}`)
                 .then(() =>
                     expect.fail(null, null, 'Request should not succeed')
@@ -156,7 +156,7 @@ describe('Protected endpoint', function() {
 
             return chai
                 .request(app)
-                .put('/dashboard')
+                .put('/api/dashboard')
                 .set('authorization', `Bearer ${token}`)
                 .send(watchlist)
                 .then(res => {
@@ -184,7 +184,7 @@ describe('Protected endpoint', function() {
 
             return chai
                 .request(app)
-                .get('/dashboard')
+                .get('/api/dashboard')
                 .set('authorization', `Bearer ${token}`)
                 .then(res => {
                     expect(res).to.have.status(200);

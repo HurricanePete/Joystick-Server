@@ -122,7 +122,6 @@ router.post('/', jsonParser, (req, res) => {
             });
         })
         .then(user => {
-            console.log(user._id);
             Watchlist.create({
                 userId: user._id
             });

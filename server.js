@@ -5,29 +5,23 @@ const mongoose = require('mongoose');
 const morgan = require('morgan');
 const passport = require('passport');
 
-// Here we use destructuring assignment with renaming so the two variables
-// called router (from ./users and ./auth) have different names
-// For example:
-// const actorSurnames = { james: "Stewart", robert: "De Niro" };
-// const { james: jimmy, robert: bobby } = actorSurnames;
-// console.log(jimmy); // Stewart - the variable name is jimmy, not james
-// console.log(bobby); // De Niro - the variable name is bobby, not robert
+const igdb = require('igdb-api-node').default;
+
 const {router: usersRouter, User, Watchlist} = require('./users');
 const {router: authRouter, basicStrategy, jwtStrategy} = require('./auth');
 
-
 mongoose.Promise = global.Promise;
 
-const {PORT, DATABASE_URL} = require('./config');
+const {PORT, DATABASE_URL, IGDB_API_KEY} = require('./config');
+
+const client = igdb(IGDB_API_KEY);
 
 const app = express();
 
 app.use(bodyParser.json());
 
-// Logging
 app.use(morgan('common'));
 
-// CORS
 app.use(function(req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
@@ -45,7 +39,7 @@ passport.use(jwtStrategy);
 app.use('/users/', usersRouter);
 app.use('/auth/', authRouter);
 
-app.get('/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
+app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
     return User
     .find(req.user)
     .exec()
@@ -64,7 +58,7 @@ app.get('/dashboard', passport.authenticate('jwt', {session:false}), (req, res) 
     })
 })
 
-app.put('/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
+app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
     if (!("gameIds" in req.body)) {
       const message = "Missing gameIds in request body";
       console.error(message);
@@ -100,12 +94,45 @@ app.put('/dashboard', passport.authenticate('jwt', {session:false}), (req, res) 
     })
 })
 
+app.get('/games/:search', (req, res) => {
+    client.games({
+        search: req.params.search
+    })
+    .then(results => {
+        const resultIds = results.body.map(item => {
+            return item.id
+        });
+        resultIds.join(',');
+        client.games({
+            ids: resultIds
+        })
+        .then(games => {
+            res.setHeader('Cache-Control', 'public, max-age=180')
+            res.send(games.body)
+        })
+    })
+    .catch(err => {
+        throw err;
+    })
+})
+
+app.get('/games/single/:id', (req, res) => {
+    client.games({
+        ids: req.params.id
+    })
+    .then(game => {
+        res.send(game.body)
+    })
+    .catch(err => {
+        throw err;
+    })
+})
+
 app.use('*', (req, res) => {
     return res.status(404).json({message: 'Not Found'});
 });
 
-// Referenced by both runServer and closeServer. closeServer
-// assumes runServer has run and set `server` to a server object
+
 let server;
 
 function runServer(databaseUrl=DATABASE_URL, port=PORT) {
