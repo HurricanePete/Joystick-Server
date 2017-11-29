@@ -8,7 +8,7 @@ const passport = require('passport');
 const igdb = require('igdb-api-node').default;
 
 const {router: usersRouter, User, Watchlist} = require('./users');
-const {router: authRouter, basicStrategy, jwtStrategy} = require('./auth');
+const {router: authRouter, localStrategy, jwtStrategy} = require('./auth');
 
 mongoose.Promise = global.Promise;
 
@@ -33,7 +33,7 @@ app.use(function(req, res, next) {
 });
 
 app.use(passport.initialize());
-passport.use(basicStrategy);
+passport.use(localStrategy);
 passport.use(jwtStrategy);
 
 app.use('/users/', usersRouter);
@@ -68,11 +68,9 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     .find(req.user)
     .exec()
     .then(user => {
-        console.log("user id: " + user[0]._id);
         return user[0]._id;
     })
     .then(id => {
-        console.log(id);
         return Watchlist
         .find({userId: id})
         .exec()
@@ -82,7 +80,6 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
         })
     })
     .then(list => {
-        console.log(list);
         return Watchlist
         .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds}}, {new: true})
         .exec()
@@ -94,6 +91,7 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     })
 })
 
+//add 'expand' to eliminate nested promises
 app.get('/games/:search', (req, res) => {
     client.games({
         search: req.params.search
