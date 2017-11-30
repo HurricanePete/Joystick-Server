@@ -45,6 +45,10 @@ const watchlistSchema = mongoose.Schema({
     gameIds: {
         type: Array,
         default: []
+    },
+    relatedIds: {
+        type: Array,
+        default: []
     }
 });
 

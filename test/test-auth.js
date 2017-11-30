@@ -1,11 +1,13 @@
+global.DATABASE_URL = 'mongodb://localhost/test-db';
+
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
 const {app, runServer, closeServer} = require('../server');
-const {User} = require('../users');
-const {JWT_SECRET, DATABASE_URL} = require('../config');
+const {User, Watchlist} = require('../users');
+const {JWT_SECRET} = require('../config');
 
 const expect = chai.expect;
 
@@ -19,8 +21,7 @@ function tearDownDb() {
 describe('Auth endpoints', function() {
     const username = 'Gryffindor';
     const password = 'Fortuna Major';
-    const firstName = 'Albus';
-    const lastName = 'Dumbledore';
+    const email = 'albus@hogwarts.net';
 
     before(function() {
         return runServer(DATABASE_URL);
@@ -31,14 +32,14 @@ describe('Auth endpoints', function() {
     });
 
     beforeEach(function() {
-        return User.hashPassword(password).then(password =>
+        return User.hashPassword(password)
+        .then(hash => {
             User.create({
                 username,
-                password,
-                firstName,
-                lastName
+                password: hash,
+                email
             })
-        );
+        })
     });
 
     afterEach(function() {
@@ -59,14 +60,14 @@ describe('Auth endpoints', function() {
                     }
 
                     const res = err.response;
-                    expect(res).to.have.status(401);
+                    expect(res).to.have.status(400);
                 });
         });
         it('Should reject requests with incorrect usernames', function() {
             return chai
                 .request(app)
                 .post('/auth/login')
-                .auth('wrongUsername', password)
+                .send({username: 'wrongUsername', password})
                 .then(() =>
                     expect.fail(null, null, 'Request should not succeed')
                 )
@@ -83,7 +84,7 @@ describe('Auth endpoints', function() {
             return chai
                 .request(app)
                 .post('/auth/login')
-                .auth(username, 'wrongPassword')
+                .send({username, password: 'wrongPassword'})
                 .then(() =>
                     expect.fail(null, null, 'Request should not succeed')
                 )
@@ -100,7 +101,7 @@ describe('Auth endpoints', function() {
             return chai
                 .request(app)
                 .post('/auth/login')
-                .auth(username, password)
+                .send({username, password})
                 .then(res => {
                     expect(res).to.have.status(200);
                     expect(res.body).to.be.an('object');
@@ -111,8 +112,7 @@ describe('Auth endpoints', function() {
                     });
                     expect(payload.user).to.deep.equal({
                         username,
-                        firstName,
-                        lastName
+                        email
                     });
                 });
         });
@@ -139,8 +139,7 @@ describe('Auth endpoints', function() {
             const token = jwt.sign(
                 {
                     username,
-                    firstName,
-                    lastName
+                    email
                 },
                 'wrongSecret',
                 {
@@ -170,8 +169,7 @@ describe('Auth endpoints', function() {
                 {
                     user: {
                         username,
-                        firstName,
-                        lastName
+                        email
                     },
                     exp: Math.floor(Date.now() / 1000) - 10 // Expired ten seconds ago
                 },
@@ -203,8 +201,7 @@ describe('Auth endpoints', function() {
                 {
                     user: {
                         username,
-                        firstName,
-                        lastName
+                        email
                     }
                 },
                 JWT_SECRET,
@@ -230,8 +227,7 @@ describe('Auth endpoints', function() {
                     });
                     expect(payload.user).to.deep.equal({
                         username,
-                        firstName,
-                        lastName
+                        email
                     });
                     expect(payload.exp).to.be.at.least(decoded.exp);
                 });

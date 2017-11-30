@@ -91,6 +91,20 @@ router.post('/', jsonParser, (req, res) => {
         });
     }
 
+    const emailFields = ['email'];
+    const invalidEmail = emailFields.find(
+        field => !(req.body[field].includes('@'))
+    );
+
+     if (invalidEmail) {
+        return res.status(422).json({
+            code: 422,
+            reason: 'ValidationError',
+            message: 'Must be a valid email address',
+            location: invalidEmail
+        });
+    }
+
     let {username, password, email} = req.body;
     // Username and password come in pre-trimmed, otherwise we throw an error
     // before this

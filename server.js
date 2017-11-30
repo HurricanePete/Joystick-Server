@@ -48,7 +48,6 @@ app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
             .find(user._id)
             .exec()
             .then(userList => {
-                console.log(userList[0].gameIds);
                 res.json(userList[0]);
             })
     })    
@@ -57,6 +56,29 @@ app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
         res.status(500).json({error: 'Something went wrong'});
     })
 })
+
+//uses an updated watchlist to generate an array of five related game IDs that will update each time the watchlist is updated
+const populateRelated = watchlist => {
+    const watchlistArray = Array.from(watchlist);
+    return client.games({
+        ids: watchlistArray
+    })
+    .then(watchlistGames => {
+        let relatedGames = [];
+        while(relatedGames.length < 5) {
+            const randomWatchlistIndex = Math.floor(Math.random() * watchlistGames.body.length);
+            const relatedArray = watchlistGames.body[randomWatchlistIndex].games;
+            const randomRelatedId = Math.floor(Math.random() * relatedArray.length);
+            if(!(relatedGames.includes(randomRelatedId))) {
+                relatedGames.push(relatedArray[randomRelatedId]);
+            }
+        }
+        return relatedGames
+    })
+    .catch(err => {
+        throw err;
+    })
+}
 
 app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
     if (!("gameIds" in req.body)) {
@@ -75,15 +97,18 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
         .find({userId: id})
         .exec()
         .then(item => {
-            console.log(item);
             return item[0];
         })
     })
     .then(list => {
-        return Watchlist
-        .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds}}, {new: true})
-        .exec()
-        .then(updatedList => res.status(201).json(updatedList))
+        const relatedList = populateRelated(req.body.gameIds);
+        return relatedList
+        .then(relatedList => {
+            return Watchlist
+            .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: relatedList}}, {new: true})
+            .exec()
+            .then(updatedList => res.status(201).json(updatedList))
+        })
     })
     .catch(err => {
         console.error(err);
