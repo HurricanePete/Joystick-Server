@@ -81,6 +81,20 @@ const populateRelated = watchlist => {
 }
 
 app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
+    const conditionalPromise = function(reqBodyGameIds) {
+        return new Promise((resolve, reject) => {
+           if(reqBodyGameIds.length === 0) {
+                console.log(reqBodyGameIds.length);
+                console.log('Firing')
+                reject('error')
+            }
+            else {
+                const relatedList = populateRelated(reqBodyGameIds);
+                console.log('Second')
+                resolve(relatedList)
+            }
+        })
+    }
     if (!("gameIds" in req.body)) {
       const message = "Missing gameIds in request body";
       console.error(message);
@@ -101,14 +115,30 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
         })
     })
     .then(list => {
-        const relatedList = populateRelated(req.body.gameIds);
-        return relatedList
-        .then(relatedList => {
-            return Watchlist
-            .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: relatedList}}, {new: true})
-            .exec()
-            .then(updatedList => res.status(201).json(updatedList))
-        })
+            if(req.body.gameIds.length === 0) {
+                console.log(req.body.gameIds.length);
+                console.log('Firing')
+                return Watchlist
+                        .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: []}}, {new: true})
+                        .exec()
+                        .then(updatedList => res.status(201).json(updatedList))
+
+            }
+            else {
+                const relatedList = populateRelated(req.body.gameIds);
+                console.log('Second')
+                console.log(relatedList)
+                relatedList
+                .then(relatedGames => {
+                    console.log('RelatedGames worked')
+                    return Watchlist
+                        .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: relatedGames}}, {new: true})
+                        .exec()
+                        .then(updatedList => res.status(201).json(updatedList))
+                    })
+
+            }
+                   
     })
     .catch(err => {
         console.error(err);
@@ -117,7 +147,7 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
 })
 
 //add 'expand' to eliminate nested promises
-app.get('/games/:search', (req, res) => {
+app.get('/games/search/:search', (req, res) => {
     client.games({
         search: req.params.search
     })
@@ -139,12 +169,13 @@ app.get('/games/:search', (req, res) => {
     })
 })
 
-app.get('/games/single/:id', (req, res) => {
+app.get('/games/id/:id', (req, res) => {
     client.games({
-        ids: req.params.id
-    })
-    .then(game => {
-        res.send(game.body)
+        ids: new Array(req.params.id)
+    }, ['name','cover','rating'])
+    .then(games => {
+        console.log(games);
+        res.status(200).json(games)
     })
     .catch(err => {
         throw err;
