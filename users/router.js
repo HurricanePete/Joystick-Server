@@ -10,7 +10,7 @@ const jsonParser = bodyParser.json();
 
 // Post to register a new user
 router.post('/', jsonParser, (req, res) => {
-    const requiredFields = ['username', 'password'];
+    const requiredFields = ['username', 'password', 'email'];
     const missingField = requiredFields.find(field => !(field in req.body));
 
     if (missingField) {
@@ -22,7 +22,7 @@ router.post('/', jsonParser, (req, res) => {
         });
     }
 
-    const stringFields = ['username', 'password', 'firstName', 'lastName'];
+    const stringFields = ['username', 'password', 'email'];
     const nonStringField = stringFields.find(
         field => field in req.body && typeof req.body[field] !== 'string'
     );
@@ -63,8 +63,7 @@ router.post('/', jsonParser, (req, res) => {
         },
         password: {
             min: 6,
-            // bcrypt truncates after 72 characters, so let's not give the illusion
-            // of security by storing extra (unused) info
+            // bcrypt truncates after 72 characters
             max: 72
         }
     };
@@ -92,11 +91,24 @@ router.post('/', jsonParser, (req, res) => {
         });
     }
 
-    let {username, password, firstName = '', lastName = ''} = req.body;
+    const emailFields = ['email'];
+    const invalidEmail = emailFields.find(
+        field => !(req.body[field].includes('@'))
+    );
+
+     if (invalidEmail) {
+        return res.status(422).json({
+            code: 422,
+            reason: 'ValidationError',
+            message: 'Must be a valid email address',
+            location: invalidEmail
+        });
+    }
+
+    let {username, password, email} = req.body;
     // Username and password come in pre-trimmed, otherwise we throw an error
     // before this
-    firstName = firstName.trim();
-    lastName = lastName.trim();
+    email = email.trim();
 
     return User.find({username})
         .count()
@@ -117,18 +129,17 @@ router.post('/', jsonParser, (req, res) => {
             return User.create({
                 username,
                 password: hash,
-                firstName,
-                lastName
+                email
             });
         })
         .then(user => {
-            console.log(user._id);
             Watchlist.create({
                 userId: user._id
             });
             return res.status(201).json(user.apiRepr());
         })
         .catch(err => {
+            console.log(err);
             // Forward validation errors on to the client, otherwise give a 500
             // error because something unexpected has happened
             if (err.reason === 'ValidationError') {
