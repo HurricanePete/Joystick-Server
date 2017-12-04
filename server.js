@@ -27,7 +27,7 @@ app.use(function(req, res, next) {
     res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
     res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE');
     if (req.method === 'OPTIONS') {
-        return res.send(204);
+        return res.sendStatus(204);
     }
     next();
 });
@@ -53,7 +53,7 @@ app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     })    
     .catch(err => {
         console.error(err);
-        res.status(500).json({error: 'Something went wrong'});
+        res.sendStatus(500).json({error: 'Something went wrong'});
     })
 })
 
@@ -69,10 +69,16 @@ const populateRelated = watchlist => {
             const randomWatchlistIndex = Math.floor(Math.random() * watchlistGames.body.length);
             const relatedArray = watchlistGames.body[randomWatchlistIndex].games;
             const randomRelatedId = Math.floor(Math.random() * relatedArray.length);
-            if(!(relatedGames.includes(randomRelatedId))) {
-                relatedGames.push(relatedArray[randomRelatedId]);
+            const doesContain = relatedGames.includes(relatedArray[randomRelatedId]) || watchlistArray.includes(relatedArray[randomRelatedId]);
+            if(doesContain) {
+                console.log('continuing')
+                continue;
             }
+            console.log('pushing')
+            relatedGames.push(relatedArray[randomRelatedId]);
         }
+        console.log(watchlistArray)
+        console.log(relatedGames)
         return relatedGames
     })
     .catch(err => {
@@ -81,24 +87,10 @@ const populateRelated = watchlist => {
 }
 
 app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
-    const conditionalPromise = function(reqBodyGameIds) {
-        return new Promise((resolve, reject) => {
-           if(reqBodyGameIds.length === 0) {
-                console.log(reqBodyGameIds.length);
-                console.log('Firing')
-                reject('error')
-            }
-            else {
-                const relatedList = populateRelated(reqBodyGameIds);
-                console.log('Second')
-                resolve(relatedList)
-            }
-        })
-    }
     if (!("gameIds" in req.body)) {
       const message = "Missing gameIds in request body";
       console.error(message);
-      return res.status(400).send(message);
+      return res.sendStatus(400).json({message});
     }
     User
     .find(req.user)
@@ -116,19 +108,19 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     })
     .then(list => {
             if(req.body.gameIds.length === 0) {
-                console.log(req.body.gameIds.length);
                 console.log('Firing')
                 return Watchlist
                         .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: []}}, {new: true})
                         .exec()
-                        .then(updatedList => res.status(201).json(updatedList))
+                        .then(updatedList => {
+                            console.log('Related Ids should be empty')
+                            res.status(201).json(updatedList)
+                        })
+                        
 
             }
             else {
-                const relatedList = populateRelated(req.body.gameIds);
-                console.log('Second')
-                console.log(relatedList)
-                relatedList
+                const relatedList = populateRelated(req.body.gameIds)
                 .then(relatedGames => {
                     console.log('RelatedGames worked')
                     return Watchlist
@@ -161,7 +153,7 @@ app.get('/games/search/:search', (req, res) => {
         })
         .then(games => {
             res.setHeader('Cache-Control', 'public, max-age=180')
-            res.send(games.body)
+            res.status(200).json(games.body)
         })
     })
     .catch(err => {
@@ -172,10 +164,10 @@ app.get('/games/search/:search', (req, res) => {
 app.get('/games/id/:id', (req, res) => {
     client.games({
         ids: new Array(req.params.id)
-    }, ['name','cover','rating'])
+    })
     .then(games => {
-        console.log(games);
-        res.status(200).json(games)
+        console.log('Game search successful');
+        res.status(200).json(games);
     })
     .catch(err => {
         throw err;
