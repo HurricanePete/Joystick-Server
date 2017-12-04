@@ -150,7 +150,7 @@ app.get('/games/search/:search', (req, res) => {
         resultIds.join(',');
         client.games({
             ids: resultIds
-        })
+        }, ['name', 'cover', 'rating'])
         .then(games => {
             res.setHeader('Cache-Control', 'public, max-age=180')
             res.status(200).json(games.body)
@@ -161,13 +161,26 @@ app.get('/games/search/:search', (req, res) => {
     })
 })
 
-app.get('/games/id/:id', (req, res) => {
+app.get('/games/ids/:id', (req, res) => {
     client.games({
         ids: new Array(req.params.id)
-    })
+    }, ['name', 'cover', 'rating'])
     .then(games => {
         console.log('Game search successful');
         res.status(200).json(games);
+    })
+    .catch(err => {
+        throw err;
+    })
+})
+
+app.get('/games/single/:id', (req, res) => {
+    client.games({
+        ids: new Array(req.params.id)
+    })
+    .then(game => {
+        console.log('Game search successful');
+        res.status(200).json(game.body[0]);
     })
     .catch(err => {
         throw err;
