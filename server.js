@@ -4,15 +4,22 @@ const express = require('express');
 const mongoose = require('mongoose');
 const morgan = require('morgan');
 const passport = require('passport');
+const request = require('request-promise-native');
+
+const {PORT, DATABASE_URL, IGDB_API_KEY, AWS_ID, AWS_SECRET, AWS_ASSOC_ID, EBAY_CLIENT_ID} = require('./config');
 
 const igdb = require('igdb-api-node').default;
+const {OperationHelper} = require('apac');
+const apac = new OperationHelper({
+    awsId: `${AWS_ID}`,
+    awsSecret: `${AWS_SECRET}`,
+    assocId: `${AWS_ASSOC_ID}`
+});
 
 const {router: usersRouter, User, Watchlist} = require('./users');
 const {router: authRouter, localStrategy, jwtStrategy} = require('./auth');
 
 mongoose.Promise = global.Promise;
-
-const {PORT, DATABASE_URL, IGDB_API_KEY} = require('./config');
 
 const client = igdb(IGDB_API_KEY);
 
@@ -184,6 +191,57 @@ app.get('/games/single/:id', (req, res) => {
     })
     .catch(err => {
         throw err;
+    })
+})
+
+app.get('/pricing/:search', (req, res) => {
+    let priceResponse = {
+        amazon: null,
+        ebay: null
+    }
+    const options = {
+        uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByKeywords&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&keywords=${req.params.search}&itemFilter.name=categoryName&itemFilter.value=Video%26Games&paginationInput.entriesPerPage=1`,
+        json: true
+    }
+    request(options)
+    .then(results => {
+        const match = results.findItemsByKeywordsResponse[0].searchResult[0].item[0];
+        const gameResponse = {
+            url: match.viewItemURL[0],
+            attributes: {
+                title: match.title[0],
+                condition: match.condition[0]
+            },
+            pricing: match.sellingStatus[0],
+            buyItNow: match.listingInfo[0].buyItNowAvailable[0]
+        }
+        priceResponse.ebay = gameResponse;
+        return priceResponse;
+    })
+    .then(priceResponse => {
+        apac.execute('ItemSearch', {
+            'SearchIndex': 'VideoGames',
+            'Keywords': req.params.search,
+            'ResponseGroup': 'ItemAttributes,Medium'
+        })
+        .then(results => {
+            const match = results.result.ItemSearchResponse.Items.Item[0];
+            const gameResponse = {
+                url: match.DetailPageURL,
+                attributes: match.ItemAttributes,
+                pricing: match.OfferSummary
+            };
+            priceResponse.amazon = gameResponse;
+            console.log(priceResponse)
+            res.status(200).json(priceResponse);
+        })
+        .catch(err => {
+            throw err;
+        })
+    })
+    .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something went wrong'})
     })
 })
 
