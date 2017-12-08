@@ -194,53 +194,67 @@ app.get('/games/single/:id', (req, res) => {
     })
 })
 
+//attempts to find a match to the requested game on the Amazon and eBay apis
 app.get('/pricing/:search', (req, res) => {
     let priceResponse = {
         amazon: null,
         ebay: null
     }
-    const options = {
-        uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByKeywords&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&keywords=${req.params.search}&itemFilter.name=categoryName&itemFilter.value=Video%26Games&paginationInput.entriesPerPage=1`,
-        json: true
-    }
-    request(options)
-    .then(results => {
-        const match = results.findItemsByKeywordsResponse[0].searchResult[0].item[0];
-        const gameResponse = {
-            url: match.viewItemURL[0],
-            attributes: {
-                title: match.title[0],
-                condition: match.condition[0]
-            },
-            pricing: match.sellingStatus[0],
-            buyItNow: match.listingInfo[0].buyItNowAvailable[0]
-        }
-        priceResponse.ebay = gameResponse;
-        return priceResponse;
-    })
-    .then(priceResponse => {
-        apac.execute('ItemSearch', {
+    apac.execute('ItemSearch', {
             'SearchIndex': 'VideoGames',
             'Keywords': req.params.search,
             'ResponseGroup': 'ItemAttributes,Medium'
-        })
-        .then(results => {
-            const match = results.result.ItemSearchResponse.Items.Item[0];
+    })
+    .then(results => {
+        const resultArray = results.result.ItemSearchResponse.Items;
+        //const matches = resultArray.filter(item => item.ItemAttributes.HardwarePlatform === 'Xbox 360');
+        if(resultArray.TotalResults === '0') {
+            res.status(200).json({message: 'No results found'})
+        }
+        else {
+        //console.log(resultArray)
+//cross-checks matched Amazon games with the release data -- feaure needs to be expanded 
+            const refinedMatches = resultArray.Item.filter(item => Date.parse(item.ItemAttributes.ReleaseDate) === 1490054400000);
+            console.log(resultArray)
             const gameResponse = {
-                url: match.DetailPageURL,
-                attributes: match.ItemAttributes,
-                pricing: match.OfferSummary
+                url: refinedMatches[0].DetailPageURL,
+                attributes: refinedMatches[0].ItemAttributes,
+                pricing: refinedMatches[0].OfferSummary
             };
             priceResponse.amazon = gameResponse;
-            console.log(priceResponse)
+            console.log(refinedMatches[0].ItemAttributes.UPC)
+            return refinedMatches[0].ItemAttributes.UPC;
+        }
+    })
+//attempts to use the UPC from the Amazon result to find a matching item on eBay
+    .then(upc => {
+        console.log('pre-Ebay')
+        const options = {
+            uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByProduct&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&productId.@type=UPC&productId=${upc}`,
+            json: true
+        }
+        request(options)
+        .then(results => {
+            console.log(results.findItemsByProductResponse)
+            const match = results.findItemsByProductResponse[0].searchResult[0].item[0];
+            const gameResponse = {
+                url: match.viewItemURL[0],
+                attributes: {
+                    title: match.title[0],
+                    condition: match.condition[0]
+                },
+                pricing: match.sellingStatus[0],
+                buyItNow: match.listingInfo[0].buyItNowAvailable[0]
+            }
+            priceResponse.ebay = gameResponse;
             res.status(200).json(priceResponse);
-        })
-        .catch(err => {
-            throw err;
         })
     })
     .catch(err => {
         console.error(err);
+        if(err === 'No results found') {
+            res.status(500).json({error: 'No results found'})
+        }
         res.status(500).json({error: 'Something went wrong'})
     })
 })
