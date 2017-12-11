@@ -9,6 +9,7 @@ const request = require('request-promise-native');
 const {PORT, DATABASE_URL, IGDB_API_KEY, AWS_ID, AWS_SECRET, AWS_ASSOC_ID, EBAY_CLIENT_ID} = require('./config');
 
 const igdb = require('igdb-api-node').default;
+
 const {OperationHelper} = require('apac');
 const apac = new OperationHelper({
     awsId: `${AWS_ID}`,
@@ -156,7 +157,9 @@ app.get('/games/search/:search', (req, res) => {
         });
         resultIds.join(',');
         client.games({
-            ids: resultIds
+            ids: resultIds,
+            limit: 25,
+            scroll: 1
         }, ['name', 'cover', 'rating'])
         .then(games => {
             res.setHeader('Cache-Control', 'public, max-age=180')
@@ -195,66 +198,89 @@ app.get('/games/single/:id', (req, res) => {
 })
 
 //attempts to find a match to the requested game on the Amazon and eBay apis
-app.get('/pricing/:search', (req, res) => {
+app.post('/pricing', (req, res) => {
     let priceResponse = {
         amazon: null,
         ebay: null
     }
     apac.execute('ItemSearch', {
             'SearchIndex': 'VideoGames',
-            'Keywords': req.params.search,
+            'Keywords': req.body.search,
             'ResponseGroup': 'ItemAttributes,Medium'
     })
     .then(results => {
         const resultArray = results.result.ItemSearchResponse.Items;
-        //const matches = resultArray.filter(item => item.ItemAttributes.HardwarePlatform === 'Xbox 360');
         if(resultArray.TotalResults === '0') {
             res.status(200).json({message: 'No results found'})
+            Promise.reject(new Error('No results'));
         }
         else {
         //console.log(resultArray)
-//cross-checks matched Amazon games with the release data -- feaure needs to be expanded 
-            const refinedMatches = resultArray.Item.filter(item => Date.parse(item.ItemAttributes.ReleaseDate) === 1490054400000);
-            console.log(resultArray)
-            const gameResponse = {
-                url: refinedMatches[0].DetailPageURL,
-                attributes: refinedMatches[0].ItemAttributes,
-                pricing: refinedMatches[0].OfferSummary
-            };
-            priceResponse.amazon = gameResponse;
-            console.log(refinedMatches[0].ItemAttributes.UPC)
-            return refinedMatches[0].ItemAttributes.UPC;
+//cross-checks matched Amazon games with the release data -- feaure needs to be expanded
+            const matches = resultArray.Item.filter(item => item.ItemAttributes.HardwarePlatform === req.body.console);
+            console.log("Matching console", matches);
+            if(matches.length === 0) {
+                return 'empty';
+            }
+            else {
+                const timeFrame = item => {
+                    console.log('TimeFrame is:', Math.abs((Date.parse(item.ItemAttributes.ReleaseDate)) - req.body.ReleaseDate) <= 15883200000);
+                    return Math.abs((Date.parse(item.ItemAttributes.ReleaseDate)) - req.body.releaseDate) <= 15883200000;
+                };
+                const refinedMatches = matches.filter(item => timeFrame(item));
+                console.log("Matching timeframe", refinedMatches)
+                if(refinedMatches.length === 0) {
+                    return 'empty';
+                }
+                else {
+                    const gameResponse = {
+                        url: refinedMatches[0].DetailPageURL,
+                        attributes: refinedMatches[0].ItemAttributes,
+                        pricing: refinedMatches[0].OfferSummary
+                    };
+                    priceResponse.amazon = gameResponse;
+                    console.log(refinedMatches[0].ItemAttributes.UPC)
+                    const matchUpc = refinedMatches[0].ItemAttributes.UPC;
+                    return matchUpc === undefined ? 'empty' : matchUpc ;
+                }
+            }
         }
     })
 //attempts to use the UPC from the Amazon result to find a matching item on eBay
     .then(upc => {
-        console.log('pre-Ebay')
-        const options = {
-            uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByProduct&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&productId.@type=UPC&productId=${upc}`,
-            json: true
+        if(upc === 'empty') {
+            res.status(200).json(priceResponse); 
         }
-        request(options)
-        .then(results => {
-            console.log(results.findItemsByProductResponse)
-            const match = results.findItemsByProductResponse[0].searchResult[0].item[0];
-            const gameResponse = {
-                url: match.viewItemURL[0],
-                attributes: {
-                    title: match.title[0],
-                    condition: match.condition[0]
-                },
-                pricing: match.sellingStatus[0],
-                buyItNow: match.listingInfo[0].buyItNowAvailable[0]
+        else {
+            console.log('pre-Ebay', upc)
+            const options = {
+                uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByProduct&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&productId.@type=UPC&productId=${upc}`,
+                json: true
             }
-            priceResponse.ebay = gameResponse;
-            res.status(200).json(priceResponse);
-        })
+            request(options)
+            .then(results => {
+                console.log(results.findItemsByProductResponse);
+                if(results.findItemsByProductResponse[0].ack[0] === 'Failure') {
+                    res.status(200).json(priceResponse);
+                }
+                else {
+                    const match = results.findItemsByProductResponse[0].searchResult[0].item[0];
+                    const gameResponse = {
+                        url: match.viewItemURL[0],
+                        attributes: {
+                            title: match.title[0],
+                            condition: match.condition[0]
+                        },
+                        pricing: match.sellingStatus[0],
+                        buyItNow: match.listingInfo[0].buyItNowAvailable[0]
+                    }
+                    priceResponse.ebay = gameResponse;
+                    res.status(200).json(priceResponse);
+                }
+            })
+        }
     })
     .catch(err => {
-        console.error(err);
-        if(err === 'No results found') {
-            res.status(500).json({error: 'No results found'})
-        }
         res.status(500).json({error: 'Something went wrong'})
     })
 })
