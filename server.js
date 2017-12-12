@@ -4,25 +4,19 @@ const express = require('express');
 const mongoose = require('mongoose');
 const morgan = require('morgan');
 const passport = require('passport');
-const request = require('request-promise-native');
-
-const {PORT, DATABASE_URL, IGDB_API_KEY, AWS_ID, AWS_SECRET, AWS_ASSOC_ID, EBAY_CLIENT_ID} = require('./config');
 
 const igdb = require('igdb-api-node').default;
 
-const {OperationHelper} = require('apac');
-const apac = new OperationHelper({
-    awsId: `${AWS_ID}`,
-    awsSecret: `${AWS_SECRET}`,
-    assocId: `${AWS_ASSOC_ID}`
-});
+const {PORT, DATABASE_URL, IGDB_API_KEY} = require('./config');
 
 const {router: usersRouter, User, Watchlist} = require('./users');
 const {router: authRouter, localStrategy, jwtStrategy} = require('./auth');
-
-mongoose.Promise = global.Promise;
+const {router: pricingRouter} = require('./pricing');
+const {router: gameSearchRouter} = require('./games');
 
 const client = igdb(IGDB_API_KEY);
+
+mongoose.Promise = global.Promise;
 
 const app = express();
 
@@ -46,16 +40,20 @@ passport.use(jwtStrategy);
 
 app.use('/users/', usersRouter);
 app.use('/auth/', authRouter);
+app.use('/pricing/', pricingRouter);
+app.use('/games/', gameSearchRouter);
 
 app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
     return User
     .find(req.user)
     .exec()
     .then(user => {
+        console.log(user[0]._id)
         return Watchlist
-            .find(user._id)
+            .find({userId: user[0]._id})
             .exec()
             .then(userList => {
+                console.log(userList)
                 res.json(userList[0]);
             })
     })    
@@ -143,179 +141,6 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     .catch(err => {
         console.error(err);
         res.status(500).json({error: 'Something went wrong'});
-    })
-})
-
-//add 'expand' to eliminate nested promises
-app.get('/games/search/:search', (req, res) => {
-    client.games({
-        search: req.params.search
-    })
-    .then(results => {
-        const resultIds = results.body.map(item => {
-            return item.id
-        });
-        resultIds.join(',');
-        client.games({
-            ids: resultIds,
-            order: "popularity:desc",
-            filter: "platforms",
-            lt: 50,
-            limit: 25,
-            scroll: 1
-        }, ['name', 'cover', 'rating'])
-        .then(games => {
-            res.setHeader('Cache-Control', 'public, max-age=180')
-            res.status(200).json(games.body)
-        })
-    })
-    .catch(err => {
-        res.status(500).json({error: 'Something went wrong'})
-    })
-})
-
-app.get('/games/ids/:id', (req, res) => {
-    client.games({
-        ids: new Array(req.params.id)
-    }, ['name', 'cover', 'rating'])
-    .then(games => {
-        console.log('Game search successful');
-        res.status(200).json(games);
-    })
-    .catch(err => {
-        res.status(500).json({error: 'Something went wrong'})
-    })
-})
-
-app.get('/games/single/:id', (req, res) => {
-    let responseObject = {
-        game: null,
-        platforms: []
-    }
-    client.games({
-        ids: new Array(req.params.id)
-    })
-    .then(game => {
-        console.log('Game search successful');
-        responseObject.game = game.body[0];
-        client.platforms({
-            ids: new Array(game.body[0].platforms)
-        }, ['name'])
-        .then(platforms => {
-//filters out additional platforms that may be included despite the igdb api call parameters
-console.log(platforms)
-            platforms.body.forEach(platform => {
-                if(platform.id <= 41 || platform.id >= 48 || platform.id === 46) {
-                    responseObject.platforms.push(platform.name)
-                }
-            })
-            responseObject.platforms = responseObject.platforms.filter(platform => platform !== "iOS");
-            console.log(responseObject.platforms);
-            res.status(200).json(responseObject);
-        })
-    })
-    .catch(err => {
-        res.status(500).json({error: 'Something went wrong'})
-    })
-})
-
-//attempts to find a match to the requested game on the Amazon and eBay apis
-app.post('/pricing', (req, res) => {
-    let priceResponse = {
-        amazon: null,
-        ebay: null
-    }
-    console.log(req.body)
-    apac.execute('ItemSearch', {
-            'SearchIndex': 'VideoGames',
-            'Keywords': req.body.search,
-            'ResponseGroup': 'ItemAttributes,Medium'
-    })
-    .then(results => {
-        const resultArray = results.result.ItemSearchResponse.Items;
-        if(resultArray.TotalResults === '0') {
-            return 'empty';
-        }
-        else {
-            // const platformFieldCheck = item => {
-            //     if(item.ItemAttributes.HardwarePlatform !== undefined) {
-            //         return item.ItemAttributes.HardwarePlatform === req.body.console
-            //     }
-            //     else if(item.ItemAttributes.Platform !== undefined) {
-            //         return item.ItemAttributes.Platform === req.body.console
-            //     }
-            // }
-//cross-checks matched Amazon games with the release data -- feaure needs to be expanded
-            const matches = resultArray.Item.filter(item => item.ItemAttributes.Platform === req.body.console);
-            console.log("Matching consoles", matches);
-            if(matches.length === 0) {
-                return 'empty';
-            }
-            else {
-                const timeFrame = item => {
-                    console.log('Time Frame');
-                    const requestYear = new Date(req.body.releaseDate).getFullYear();
-                    const gameYear = new Date(item.ItemAttributes.ReleaseDate).getFullYear();
-                    console.log('Years are: ', requestYear, gameYear)
-                    return gameYear === requestYear;
-                };
-                console.log('Filtering')
-                const refinedMatches = matches.filter(item => timeFrame(item));
-                console.log("Matching timeframe", refinedMatches)
-                if(refinedMatches.length === 0) {
-                    return 'empty';
-                }
-                else {
-                    const gameResponse = {
-                        url: refinedMatches[0].DetailPageURL,
-                        attributes: refinedMatches[0].ItemAttributes,
-                        pricing: refinedMatches[0].OfferSummary
-                    };
-                    priceResponse.amazon = gameResponse;
-                    console.log(refinedMatches[0].ItemAttributes.UPC)
-                    const matchUpc = refinedMatches[0].ItemAttributes.UPC;
-                    console.log(refinedMatches[0].ItemAttributes.UPCList)
-                    return matchUpc === undefined ? 'empty' : matchUpc ;
-                }
-            }
-        }
-    })
-//attempts to use the UPC from the Amazon result to find a matching item on eBay
-    .then(upc => {
-        if(upc === 'empty') {
-            res.status(200).json(priceResponse); 
-        }
-        else {
-            console.log('pre-Ebay', upc)
-            const options = {
-                uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByProduct&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&productId.@type=UPC&productId=${upc}`,
-                json: true
-            }
-            request(options)
-            .then(results => {
-                console.log(results.findItemsByProductResponse);
-                if(results.findItemsByProductResponse[0].ack[0] === 'Failure') {
-                    res.status(200).json(priceResponse);
-                }
-                else {
-                    const match = results.findItemsByProductResponse[0].searchResult[0].item[0];
-                    const gameResponse = {
-                        url: match.viewItemURL[0],
-                        attributes: {
-                            title: match.title[0],
-                            condition: match.condition[0]
-                        },
-                        pricing: match.sellingStatus[0],
-                        buyItNow: match.listingInfo[0].buyItNowAvailable[0]
-                    }
-                    priceResponse.ebay = gameResponse;
-                    res.status(200).json(priceResponse);
-                }
-            })
-        }
-    })
-    .catch(err => {
-        res.status(500).json({error: 'Something went wrong'})
     })
 })
 
