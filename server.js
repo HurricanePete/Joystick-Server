@@ -90,7 +90,7 @@ const populateRelated = watchlist => {
         return relatedGames
     })
     .catch(err => {
-        throw err;
+        res.status(500).json({error: 'Something went wrong'})
     })
 }
 
@@ -158,6 +158,9 @@ app.get('/games/search/:search', (req, res) => {
         resultIds.join(',');
         client.games({
             ids: resultIds,
+            order: "popularity:desc",
+            filter: "platforms",
+            lt: 50,
             limit: 25,
             scroll: 1
         }, ['name', 'cover', 'rating'])
@@ -167,7 +170,7 @@ app.get('/games/search/:search', (req, res) => {
         })
     })
     .catch(err => {
-        throw err;
+        res.status(500).json({error: 'Something went wrong'})
     })
 })
 
@@ -180,20 +183,39 @@ app.get('/games/ids/:id', (req, res) => {
         res.status(200).json(games);
     })
     .catch(err => {
-        throw err;
+        res.status(500).json({error: 'Something went wrong'})
     })
 })
 
 app.get('/games/single/:id', (req, res) => {
+    let responseObject = {
+        game: null,
+        platforms: []
+    }
     client.games({
         ids: new Array(req.params.id)
     })
     .then(game => {
         console.log('Game search successful');
-        res.status(200).json(game.body[0]);
+        responseObject.game = game.body[0];
+        client.platforms({
+            ids: new Array(game.body[0].platforms)
+        }, ['name'])
+        .then(platforms => {
+//filters out additional platforms that may be included despite the igdb api call parameters
+console.log(platforms)
+            platforms.body.forEach(platform => {
+                if(platform.id <= 41 || platform.id >= 48 || platform.id === 46) {
+                    responseObject.platforms.push(platform.name)
+                }
+            })
+            responseObject.platforms = responseObject.platforms.filter(platform => platform !== "iOS");
+            console.log(responseObject.platforms);
+            res.status(200).json(responseObject);
+        })
     })
     .catch(err => {
-        throw err;
+        res.status(500).json({error: 'Something went wrong'})
     })
 })
 
@@ -203,6 +225,7 @@ app.post('/pricing', (req, res) => {
         amazon: null,
         ebay: null
     }
+    console.log(req.body)
     apac.execute('ItemSearch', {
             'SearchIndex': 'VideoGames',
             'Keywords': req.body.search,
@@ -211,22 +234,32 @@ app.post('/pricing', (req, res) => {
     .then(results => {
         const resultArray = results.result.ItemSearchResponse.Items;
         if(resultArray.TotalResults === '0') {
-            res.status(200).json({message: 'No results found'})
-            Promise.reject(new Error('No results'));
+            return 'empty';
         }
         else {
-        //console.log(resultArray)
+            // const platformFieldCheck = item => {
+            //     if(item.ItemAttributes.HardwarePlatform !== undefined) {
+            //         return item.ItemAttributes.HardwarePlatform === req.body.console
+            //     }
+            //     else if(item.ItemAttributes.Platform !== undefined) {
+            //         return item.ItemAttributes.Platform === req.body.console
+            //     }
+            // }
 //cross-checks matched Amazon games with the release data -- feaure needs to be expanded
-            const matches = resultArray.Item.filter(item => item.ItemAttributes.HardwarePlatform === req.body.console);
-            console.log("Matching console", matches);
+            const matches = resultArray.Item.filter(item => item.ItemAttributes.Platform === req.body.console);
+            console.log("Matching consoles", matches);
             if(matches.length === 0) {
                 return 'empty';
             }
             else {
                 const timeFrame = item => {
-                    console.log('TimeFrame is:', Math.abs((Date.parse(item.ItemAttributes.ReleaseDate)) - req.body.ReleaseDate) <= 15883200000);
-                    return Math.abs((Date.parse(item.ItemAttributes.ReleaseDate)) - req.body.releaseDate) <= 15883200000;
+                    console.log('Time Frame');
+                    const requestYear = new Date(req.body.releaseDate).getFullYear();
+                    const gameYear = new Date(item.ItemAttributes.ReleaseDate).getFullYear();
+                    console.log('Years are: ', requestYear, gameYear)
+                    return gameYear === requestYear;
                 };
+                console.log('Filtering')
                 const refinedMatches = matches.filter(item => timeFrame(item));
                 console.log("Matching timeframe", refinedMatches)
                 if(refinedMatches.length === 0) {
@@ -241,6 +274,7 @@ app.post('/pricing', (req, res) => {
                     priceResponse.amazon = gameResponse;
                     console.log(refinedMatches[0].ItemAttributes.UPC)
                     const matchUpc = refinedMatches[0].ItemAttributes.UPC;
+                    console.log(refinedMatches[0].ItemAttributes.UPCList)
                     return matchUpc === undefined ? 'empty' : matchUpc ;
                 }
             }
