@@ -82,4 +82,35 @@ console.log(platforms)
     })
 })
 
+router.get('/news', (req, res) => {
+    const today = new Date();
+    // today.toLocaleDateString();
+    // today.setMonth(today.getMonth() - 1);
+    // today.toLocaleDateString();
+    const timeFrame = Date.parse(today);
+    client.pulses({
+        order:'published_at:desc',
+        filters: {
+            //'published_at-gt': timeFrame,
+            'published_at-lt': timeFrame
+        }
+    })
+    .then(articles => {
+        console.log(articles)
+        const newsIds = articles.body.map(article => {
+            return article.id;
+        });
+        console.log('pre-pulse', newsIds)
+        client.pulses({
+            ids: newsIds,
+            fields: ['title', 'image', 'published_at', 'url', 'pulse_source.name'],
+            expand: ['pulse_source']
+        })
+        .then(news => {
+            console.log('post-pulse');
+            res.status(200).json(news.body)
+        })
+    })
+})
+
 module.exports = {router};
