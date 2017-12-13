@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "apac": "^3.0.2",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.18.2",
     "dotenv": "^4.0.0",
@@ -22,7 +23,9 @@
     "passport-http": "^0.3.0",
     "passport-jwt": "^3.0.1",
     "passport-local": "^1.0.0",
-    "redux-thunk": "^2.2.0"
+    "redux-thunk": "^2.2.0",
+    "request": "^2.83.0",
+    "request-promise-native": "^1.0.5"
   },
   "devDependencies": {
     "chai": "^4.1.2",

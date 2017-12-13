@@ -7,14 +7,16 @@ const passport = require('passport');
 
 const igdb = require('igdb-api-node').default;
 
-const {router: usersRouter, User, Watchlist} = require('./users');
-const {router: authRouter, localStrategy, jwtStrategy} = require('./auth');
-
-mongoose.Promise = global.Promise;
-
 const {PORT, DATABASE_URL, IGDB_API_KEY} = require('./config');
 
+const {router: usersRouter, User, Watchlist} = require('./users');
+const {router: authRouter, localStrategy, jwtStrategy} = require('./auth');
+const {router: pricingRouter} = require('./pricing');
+const {router: gameSearchRouter} = require('./games');
+
 const client = igdb(IGDB_API_KEY);
+
+mongoose.Promise = global.Promise;
 
 const app = express();
 
@@ -38,16 +40,20 @@ passport.use(jwtStrategy);
 
 app.use('/users/', usersRouter);
 app.use('/auth/', authRouter);
+app.use('/pricing/', pricingRouter);
+app.use('/games/', gameSearchRouter);
 
 app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
     return User
     .find(req.user)
     .exec()
     .then(user => {
+        console.log(user[0]._id)
         return Watchlist
-            .find(user._id)
+            .find({userId: user[0]._id})
             .exec()
             .then(userList => {
+                console.log(userList)
                 res.json(userList[0]);
             })
     })    
@@ -82,7 +88,7 @@ const populateRelated = watchlist => {
         return relatedGames
     })
     .catch(err => {
-        throw err;
+        res.status(500).json({error: 'Something went wrong'})
     })
 }
 
@@ -135,42 +141,6 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     .catch(err => {
         console.error(err);
         res.status(500).json({error: 'Something went wrong'});
-    })
-})
-
-//add 'expand' to eliminate nested promises
-app.get('/games/search/:search', (req, res) => {
-    client.games({
-        search: req.params.search
-    })
-    .then(results => {
-        const resultIds = results.body.map(item => {
-            return item.id
-        });
-        resultIds.join(',');
-        client.games({
-            ids: resultIds
-        })
-        .then(games => {
-            res.setHeader('Cache-Control', 'public, max-age=180')
-            res.status(200).json(games.body)
-        })
-    })
-    .catch(err => {
-        throw err;
-    })
-})
-
-app.get('/games/id/:id', (req, res) => {
-    client.games({
-        ids: new Array(req.params.id)
-    })
-    .then(games => {
-        console.log('Game search successful');
-        res.status(200).json(games);
-    })
-    .catch(err => {
-        throw err;
     })
 })
 
