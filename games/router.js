@@ -84,14 +84,10 @@ console.log(platforms)
 
 router.get('/news', (req, res) => {
     const today = new Date();
-    // today.toLocaleDateString();
-    // today.setMonth(today.getMonth() - 1);
-    // today.toLocaleDateString();
     const timeFrame = Date.parse(today);
     client.pulses({
         order:'published_at:desc',
         filters: {
-            //'published_at-gt': timeFrame,
             'published_at-lt': timeFrame
         }
     })

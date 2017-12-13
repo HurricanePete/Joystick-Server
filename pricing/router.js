@@ -33,7 +33,6 @@ router.post('/', (req, res) => {
         else {
 //cross-checks matched Amazon games with the release data -- feaure needs to be expanded
             const matches = resultArray.Item.filter(item => item.ItemAttributes.Platform === req.body.console);
-            console.log("Matching consoles", matches);
             if(matches.length === 0) {
                 return 'empty';
             }
@@ -52,14 +51,22 @@ router.post('/', (req, res) => {
                     return 'empty';
                 }
                 else {
+                    let i = 0;
+                    if(refinedMatches[i].OfferSummary.LowestNewPrice === undefined) {
+                        i++;
+                    }
+                    else if(refinedMatches[i] === undefined) {
+                        i--;
+                    }
                     const gameResponse = {
-                        url: refinedMatches[0].DetailPageURL,
-                        attributes: refinedMatches[0].ItemAttributes,
-                        pricing: refinedMatches[0].OfferSummary
+                        url: refinedMatches[i].DetailPageURL,
+                        attributes: refinedMatches[i].ItemAttributes,
+                        pricing: refinedMatches[i].OfferSummary
                     };
                     priceResponse.amazon = gameResponse;
-                    console.log(refinedMatches[0].ItemAttributes.UPC)
-                    const matchUpc = refinedMatches[0].ItemAttributes.UPC;
+                    console.log(refinedMatches[i].ItemAttributes.UPC)
+                    const matchUpc = refinedMatches[i].ItemAttributes.UPC;
+                    console.log('Amazon pricing is: ', gameResponse.pricing.LowestNewPrice)
                     return matchUpc === undefined ? 'empty' : matchUpc ;
                 }
             }
