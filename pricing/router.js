@@ -66,7 +66,7 @@ router.post('/', (req, res) => {
                     priceResponse.amazon = gameResponse;
                     console.log(refinedMatches[i].ItemAttributes.UPC)
                     const matchUpc = refinedMatches[i].ItemAttributes.UPC;
-                    console.log('Amazon pricing is: ', gameResponse.pricing.LowestNewPrice)
+                    console.log('Amazon pricing is: ', gameResponse.pricing)
                     return matchUpc === undefined ? 'empty' : matchUpc ;
                 }
             }
