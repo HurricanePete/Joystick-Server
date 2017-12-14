@@ -68,7 +68,10 @@ router.get('/single/:id', (req, res) => {
 //filters out additional platforms that may be included despite the igdb api call parameters
 console.log(platforms)
             platforms.body.forEach(platform => {
-                if(platform.id <= 41 || platform.id >= 48 || platform.id === 46) {
+                if(platform.id === 6) {
+                    responseObject.platforms.push("PC")
+                }
+                else if(platform.id <= 41 || platform.id >= 48 || platform.id === 46) {
                     responseObject.platforms.push(platform.name)
                 }
             })

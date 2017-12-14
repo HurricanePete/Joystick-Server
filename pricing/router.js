@@ -33,42 +33,51 @@ router.post('/', (req, res) => {
         else {
 //cross-checks matched Amazon games with the release data -- feaure needs to be expanded
             const matches = resultArray.Item.filter(item => item.ItemAttributes.Platform === req.body.console);
+            console.log(matches)
             if(matches.length === 0) {
                 return 'empty';
             }
             else {
-                const timeFrame = item => {
-                    console.log('Time Frame');
+                // const timeFrame = item => {
+                //     let closest;
+                //     console.log('Time Frame');
+                    
+                //     console.log('Years are: ', requestYear, gameYear)
+
+                //     return gameYear === requestYear;
+                // };
+                console.log('Filtering')
+                let closest = matches[0];
+                matches.forEach(item => {
                     const requestYear = new Date(req.body.releaseDate).getFullYear();
                     const gameYear = new Date(item.ItemAttributes.ReleaseDate).getFullYear();
-                    console.log('Years are: ', requestYear, gameYear)
-                    return gameYear === requestYear;
-                };
-                console.log('Filtering')
-                const refinedMatches = matches.filter(item => timeFrame(item));
-                console.log("Matching timeframe", refinedMatches)
-                if(refinedMatches.length === 0) {
-                    return 'empty';
-                }
-                else {
-                    let i = 0;
-                    if(refinedMatches[i].OfferSummary.LowestNewPrice === undefined) {
-                        i++;
+                    if(Math.abs(requestYear - gameYear) < closest) {
+                        closest = item
                     }
-                    else if(refinedMatches[i] === undefined) {
-                        i--;
-                    }
+                } )//filter(item => timeFrame(item));
+                console.log("Matching timeframe", closest)
+                // if(refinedMatches.length === 0) {
+                //     return 'empty';
+                // }
+                // else {
+                    // let i = 0;
+                    // if(refinedMatches[i].OfferSummary.LowestNewPrice === undefined) {
+                    //     i++;
+                    // }
+                    // else if(refinedMatches[i] === undefined) {
+                    //     i--;
+                    // }
                     const gameResponse = {
-                        url: refinedMatches[i].DetailPageURL,
-                        attributes: refinedMatches[i].ItemAttributes,
-                        pricing: refinedMatches[i].OfferSummary
+                        url: closest.DetailPageURL,
+                        attributes: closest.ItemAttributes,
+                        pricing: closest.OfferSummary
                     };
                     priceResponse.amazon = gameResponse;
-                    console.log(refinedMatches[i].ItemAttributes.UPC)
-                    const matchUpc = refinedMatches[i].ItemAttributes.UPC;
+                    console.log(closest.ItemAttributes.UPC)
+                    const matchUpc = closest.ItemAttributes.UPC;
                     console.log('Amazon pricing is: ', gameResponse.pricing)
                     return matchUpc === undefined ? 'empty' : matchUpc ;
-                }
+                //}
             }
         }
     })
