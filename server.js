@@ -48,12 +48,10 @@ app.get('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     .find(req.user)
     .exec()
     .then(user => {
-        console.log(user[0]._id)
         return Watchlist
             .find({userId: user[0]._id})
             .exec()
             .then(userList => {
-                console.log(userList)
                 res.json(userList[0]);
             })
     })    
@@ -77,14 +75,10 @@ const populateRelated = watchlist => {
             const randomRelatedId = Math.floor(Math.random() * relatedArray.length);
             const doesContain = relatedGames.includes(relatedArray[randomRelatedId]) || watchlistArray.includes(relatedArray[randomRelatedId]);
             if(doesContain) {
-                console.log('continuing')
                 continue;
             }
-            console.log('pushing')
             relatedGames.push(relatedArray[randomRelatedId]);
         }
-        console.log(watchlistArray)
-        console.log(relatedGames)
         return relatedGames
     })
     .catch(err => {
@@ -114,12 +108,10 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
     })
     .then(list => {
             if(req.body.gameIds.length === 0) {
-                console.log('Firing')
                 return Watchlist
                         .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: []}}, {new: true})
                         .exec()
                         .then(updatedList => {
-                            console.log('Related Ids should be empty')
                             res.status(201).json(updatedList)
                         })
                         
@@ -128,7 +120,6 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
             else {
                 const relatedList = populateRelated(req.body.gameIds)
                 .then(relatedGames => {
-                    console.log('RelatedGames worked')
                     return Watchlist
                         .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: relatedGames}}, {new: true})
                         .exec()

@@ -19,7 +19,6 @@ router.post('/', (req, res) => {
         amazon: null,
         ebay: null
     }
-    console.log(req.body)
     apac.execute('ItemSearch', {
             'SearchIndex': 'VideoGames',
             'Keywords': req.body.search,
@@ -33,20 +32,10 @@ router.post('/', (req, res) => {
         else {
 //cross-checks matched Amazon games with the release data -- feaure needs to be expanded
             const matches = resultArray.Item.filter(item => item.ItemAttributes.Platform === req.body.console);
-            console.log(matches)
             if(matches.length === 0) {
                 return 'empty';
             }
             else {
-                // const timeFrame = item => {
-                //     let closest;
-                //     console.log('Time Frame');
-                    
-                //     console.log('Years are: ', requestYear, gameYear)
-
-                //     return gameYear === requestYear;
-                // };
-                console.log('Filtering')
                 let closest = matches[0];
                 matches.forEach(item => {
                     const requestYear = new Date(req.body.releaseDate).getFullYear();
@@ -54,30 +43,15 @@ router.post('/', (req, res) => {
                     if(Math.abs(requestYear - gameYear) < closest) {
                         closest = item
                     }
-                } )//filter(item => timeFrame(item));
-                console.log("Matching timeframe", closest)
-                // if(refinedMatches.length === 0) {
-                //     return 'empty';
-                // }
-                // else {
-                    // let i = 0;
-                    // if(refinedMatches[i].OfferSummary.LowestNewPrice === undefined) {
-                    //     i++;
-                    // }
-                    // else if(refinedMatches[i] === undefined) {
-                    //     i--;
-                    // }
-                    const gameResponse = {
-                        url: closest.DetailPageURL,
-                        attributes: closest.ItemAttributes,
-                        pricing: closest.OfferSummary
-                    };
-                    priceResponse.amazon = gameResponse;
-                    console.log(closest.ItemAttributes.UPC)
-                    const matchUpc = closest.ItemAttributes.UPC;
-                    console.log('Amazon pricing is: ', gameResponse.pricing)
-                    return matchUpc === undefined ? 'empty' : matchUpc ;
-                //}
+                })
+                const gameResponse = {
+                   url: closest.DetailPageURL,
+                    attributes: closest.ItemAttributes,
+                    pricing: closest.OfferSummary
+                };
+                priceResponse.amazon = gameResponse;
+                const matchUpc = closest.ItemAttributes.UPC;
+                return matchUpc === undefined ? 'empty' : matchUpc ;
             }
         }
     })
@@ -87,14 +61,12 @@ router.post('/', (req, res) => {
             res.status(200).json(priceResponse); 
         }
         else {
-            console.log('pre-Ebay', upc, config.EBAY_CLIENT_ID)
             const options = {
                 uri: `http://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByProduct&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${config.EBAY_CLIENT_ID}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&productId.@type=UPC&productId=${upc}`,
                 json: true
             }
             request(options)
             .then(results => {
-                console.log(results.findItemsByProductResponse);
                 if(results.findItemsByProductResponse[0].ack[0] === 'Failure') {
                     res.status(200).json(priceResponse);
                 }

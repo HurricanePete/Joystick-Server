@@ -21,13 +21,11 @@ router.get('/search/:search', (req, res) => {
         client.games({
             ids: resultIds,
             fields: ['name', 'cover', 'rating'],
-            //order: "popularity:desc",
             filter: "platforms",
             lt: 50,
             limit: 25
         })
         .then(games => {
-            console.log(games)
             res.setHeader('Cache-Control', 'public, max-age=180')
             res.status(200).json(games.body)
         })
@@ -42,7 +40,6 @@ router.get('/ids/:id', (req, res) => {
         ids: new Array(req.params.id)
     }, ['name', 'cover', 'rating'])
     .then(games => {
-        console.log('Game search successful');
         res.status(200).json(games);
     })
     .catch(err => {
@@ -59,14 +56,12 @@ router.get('/single/:id', (req, res) => {
         ids: new Array(req.params.id)
     })
     .then(game => {
-        console.log('Game search successful');
         responseObject.game = game.body[0];
         client.platforms({
             ids: new Array(game.body[0].platforms)
         }, ['name'])
         .then(platforms => {
 //filters out additional platforms that may be included despite the igdb api call parameters
-console.log(platforms)
             platforms.body.forEach(platform => {
                 if(platform.id === 6) {
                     responseObject.platforms.push("PC")
@@ -76,7 +71,6 @@ console.log(platforms)
                 }
             })
             responseObject.platforms = responseObject.platforms.filter(platform => platform !== "iOS");
-            console.log(responseObject.platforms);
             res.status(200).json(responseObject);
         })
     })
@@ -95,18 +89,15 @@ router.get('/news', (req, res) => {
         }
     })
     .then(articles => {
-        console.log(articles)
         const newsIds = articles.body.map(article => {
             return article.id;
         });
-        console.log('pre-pulse', newsIds)
         client.pulses({
             ids: newsIds,
             fields: ['title', 'image', 'published_at', 'url', 'pulse_source.name'],
             expand: ['pulse_source']
         })
         .then(news => {
-            console.log('post-pulse');
             res.status(200).json(news.body)
         })
     })
