@@ -74,9 +74,9 @@ router.post('/', jsonParser, (req, res) => {
             code: 422,
             reason: 'ValidationError',
             message: tooSmallField
-                ? `${tooSmallField} must be at least ${sizedFields[tooSmallField]
+                ? `Must be at least ${sizedFields[tooSmallField]
                       .min} characters long`
-                : `${tooLargeFiled} must be at most ${sizedFields[tooLargeField]
+                : `Must be at most ${sizedFields[tooLargeField]
                       .max} characters long`,
             location: tooSmallField || tooLargeField
         });
