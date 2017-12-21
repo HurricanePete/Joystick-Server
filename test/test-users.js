@@ -225,7 +225,7 @@ describe('/users', function() {
 						expect(res.body.location).to.equal('username');
 					});
 			});
-			it('Should reject users with less than ten characters', function() {
+			it('Should reject users with with password less than ten characters', function() {
 				return chai
 					.request(app)
 					.post('/users')
