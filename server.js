@@ -123,7 +123,9 @@ app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, r
                     return Watchlist
                         .findByIdAndUpdate(list._id, {$set: {gameIds: req.body.gameIds, relatedIds: relatedGames}}, {new: true})
                         .exec()
-                        .then(updatedList => res.status(201).json(updatedList))
+                        .then(updatedList => {
+                            res.status(201).json(updatedList)
+                        })
                     })
 
             }
