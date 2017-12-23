@@ -162,6 +162,7 @@ describe('Protected endpoint', function() {
                     expect(res.body.gameIds).to.deep.equal(watchlist.gameIds);
                     expect(res.body.relatedIds).to.be.an('array');
                     expect(res.body.relatedIds).to.have.a.lengthOf(5);
+                    done();
                 })
         })
         it('Should send protected data', function() {

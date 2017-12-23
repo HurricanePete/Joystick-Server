@@ -10,27 +10,33 @@ const client = igdb(config.IGDB_API_KEY);
 
 router.use(bodyParser.json());
 router.get('/search/:search', (req, res) => {
+    console.log()
     client.games({
         search: req.params.search
     })
     .then(results => {
+        console.log('pre-id', results)
         const resultIds = results.body.map(item => {
             return item.id
         });
         resultIds.join(',');
+        console.log('post-id')
         client.games({
             ids: resultIds,
-            fields: ['name', 'cover', 'rating'],
-            filter: "platforms",
-            lt: 50,
+            order: 'release_dates.date:desc',
+            filters: {
+                'platforms-lt': 50
+            },
             limit: 25
-        })
+        }, ['name', 'cover', 'first_release_date'])
         .then(games => {
+
             res.setHeader('Cache-Control', 'public, max-age=180')
             res.status(200).json(games.body)
         })
     })
     .catch(err => {
+        console.log(err);
         res.status(500).json({error: 'Something went wrong'})
     })
 })
