@@ -89,7 +89,6 @@ const populateRelated = watchlist => {
 app.put('/api/dashboard', passport.authenticate('jwt', {session:false}), (req, res) => {
     if (!("gameIds" in req.body)) {
       const message = "Missing gameIds in request body";
-      console.error(message);
       return res.sendStatus(400).json({message});
     }
     User
