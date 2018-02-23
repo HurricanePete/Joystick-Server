@@ -10,10 +10,21 @@ const client = igdb(config.IGDB_API_KEY);
 
 router.use(bodyParser.json());
 router.get('/search/:search', (req, res) => {
+    const validPlatforms = () => {
+        let platformArray = [];
+        for(let i=1; i<=50; i++) {
+            if(i !== 15 || i !== 16 || i !== 25 || i !== 26 || i !== 27 || i !== 40 || i !== 42 || i !== 44) {
+                platformArray.push(i);
+            }
+        }
+        return platformArray;
+    }
+    const platformList = validPlatforms();
     client.games({
         search: req.params.search
     })
     .then(results => {
+//creates a list of valid platform ids in order to filter queries from IGDB
         const resultIds = results.body.map(item => {
             return item.id
         });
@@ -22,17 +33,18 @@ router.get('/search/:search', (req, res) => {
             ids: resultIds,
             order: 'release_dates.date:desc',
             filters: {
-                'platforms-lt': 50
+                'in': platformList
             },
+            expand: ['genres'],
             limit: 25
-        }, ['name', 'cover', 'first_release_date'])
+        }, ['name', 'cover', 'genres.name', 'first_release_date', ])
         .then(games => {
-
             res.setHeader('Cache-Control', 'public, max-age=180')
             res.status(200).json(games.body)
         })
     })
     .catch(err => {
+        console.log(err)
         res.status(500).json({error: 'Something went wrong'})
     })
 })
@@ -68,40 +80,12 @@ router.get('/single/:id', (req, res) => {
                 if(platform.id === 6) {
                     responseObject.platforms.push("PC")
                 }
-                else if(platform.id <= 41 || platform.id >= 48 || platform.id === 46) {
-                    responseObject.platforms.push(platform.name)
-                }
             })
-            responseObject.platforms = responseObject.platforms.filter(platform => platform !== "iOS");
             res.status(200).json(responseObject);
         })
     })
     .catch(err => {
         res.status(500).json({error: 'Something went wrong'})
-    })
-})
-
-router.get('/news', (req, res) => {
-    const today = new Date();
-    const timeFrame = Date.parse(today);
-    client.pulses({
-        order:'published_at:desc',
-        filters: {
-            'published_at-lt': timeFrame
-        }
-    })
-    .then(articles => {
-        const newsIds = articles.body.map(article => {
-            return article.id;
-        });
-        client.pulses({
-            ids: newsIds,
-            fields: ['title', 'image', 'published_at', 'url', 'pulse_source.name'],
-            expand: ['pulse_source']
-        })
-        .then(news => {
-            res.status(200).json(news.body)
-        })
     })
 })
 
